@@ -23,22 +23,30 @@ MonthlyCalendarHeader {
   color: $base00;
 }
 Day {
-  height: 100%;
-  border: solid $base03;
+  border: round $base03;
 }
 Day.current-month {
-  border: solid $base0C;
+  border: round $base0C;
 }
 Day.today {
-  border: solid $base0D;
-  color: $base0D;
+  border: round $base0D;
   background: $base07;
 }
-Day.saturday {
+Day.today > DayText {
+  color: $base0D;
+}
+Day.saturday > DayText {
   color: $base08;
 }
-Day.sunday {
+Day.sunday > DayText {
   color: $base08;
+}
+Day > VerticalScroll {
+  height: 100%;
+}
+Label.event {
+  background: $base0C;
+  color: $base00;
 }
 Static.weekday-name-header {
   color: $base04;

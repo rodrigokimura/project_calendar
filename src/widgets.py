@@ -6,12 +6,19 @@ from typing import ClassVar
 from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.reactive import reactive, var
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Label, Static
 
-from utils import get_today, get_weekday_names
+from ical import ICalClient
+from models import Event
+from utils import (
+    get_final_date_of_monthly_calendar,
+    get_initial_date_of_monthly_calendar,
+    get_today,
+    get_weekday_names,
+)
 
 
 class MonthlyCalendarHeader(Widget):
@@ -31,11 +38,22 @@ class MonthlyCalendarHeader(Widget):
 
 
 class MainPane(Container):
-    current_month: int
-    current_year: int
+    def __init__(
+        self,
+        ical_client: ICalClient,
+        *children: Widget,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        self.ical_client = ical_client
+        super().__init__(
+            *children, name=name, id=id, classes=classes, disabled=disabled
+        )
 
     def compose(self) -> ComposeResult:
-        m = Month()
+        m = Month(self.ical_client)
         yield m
         m.focus()
 
@@ -50,8 +68,8 @@ class Month(Container):
     }
     Month > Container {
         layout: grid;
-        grid-size: 7 6;
-        grid-rows: 1 1fr 1fr 1fr 1fr 1fr;
+        grid-size: 7;
+        grid-rows: 1 1fr 1fr 1fr 1fr 1fr 1fr;
     }
     Month > Container > Static {
         text-align: center;
@@ -66,66 +84,91 @@ class Month(Container):
     year = var(lambda: get_today().year)
     header = var(MonthlyCalendarHeader)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, ical_client: ICalClient, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.days = [Day() for _ in range(7 * 5)]
-        self.weekdays = ("sunday", "monday", "tuesday", "wednesday")
+        self.days = [Day() for _ in range(7 * 4)]
+        self.ical_client = ical_client
 
     def compose(self) -> ComposeResult:
-        self._load_data()
         yield self.header
-        with Container():
+        self.container = Container()
+        with self.container:
             for wd in get_weekday_names():
                 yield Static(wd, classes="weekday-name-header")
-            for d in self.days:
-                yield d
+        self._load_data()
 
     def _load_data(self):
+        # TODO: add loading animation
         first_day_of_month = date(self.year, self.month, 1)
-        week_of_first_day = first_day_of_month.isocalendar().week
-        initial_date = date.fromisocalendar(
-            self.year, week_of_first_day, 1
-        ) - timedelta(days=1)
+        initial_date = get_initial_date_of_monthly_calendar(self.year, self.month)
+        final_date = get_final_date_of_monthly_calendar(self.year, self.month)
 
         self.header.reference_date = first_day_of_month
 
-        for i, d in enumerate(self.days):
-            d.reference_date = initial_date + timedelta(days=i)
+        self.container.query("Day").remove()
+
+        for i in range((final_date - initial_date).days + 1):
+            d = Day()
+            reference_date = initial_date + timedelta(days=i)
+            d.events = self.ical_client.get_events_by_day(reference_date)
             d.reference_month = self.month
+            d.reference_date = reference_date
+            self.container.mount(d)
 
     def action_prev(self):
         if self.month > 1:
             self.month -= 1
         else:
-            self.month = 12
             self.year -= 1
+            self.month = 12
         self.refresh()
 
     def action_next(self):
         if self.month < 12:
             self.month += 1
         else:
-            self.month = 1
             self.year += 1
+            self.month = 1
         self.refresh()
 
     def watch_month(self, old_month: int, new_month: int):
         self._load_data()
 
 
-class Day(Widget):
+class DayText(Widget):
     DEFAULT_CSS = """
-    Day {
-        height: 100%;
-        border: solid gray;
+    DayText {
+        height: 1;
+        dock: top;
     }
     """
     reference_date = reactive(get_today)
-    reference_month = var(lambda: get_today().month)
 
     def render(self) -> RenderableType:
         self.renderable = str(self.reference_date.day)
+        return f"{self.reference_date.day}"
 
+
+class Day(Vertical):
+    DEFAULT_CSS = """
+    Day {
+        border: solid gray;
+    }
+    """
+    events: list[Event] = []
+    events_container: VerticalScroll = VerticalScroll()
+    reference_month = var(lambda: get_today().month)
+    reference_date = var(get_today)
+    day_text: DayText = DayText()
+
+    def compose(self) -> ComposeResult:
+        self.day_text = DayText()
+        self.day_text.reference_date = self.reference_date
+        yield self.day_text
+        self.events_container = VerticalScroll(*self._get_event_labels())
+        yield self.events_container
+
+    def watch_reference_date(self, old: date, new: date):
         css_class_to_attr_map = {
             "today": self.is_today(),
             "saturday": self.is_saturday(),
@@ -135,7 +178,12 @@ class Day(Widget):
         for css_class, check in css_class_to_attr_map.items():
             (self.add_class if check else self.remove_class)(css_class)
 
-        return f"{self.reference_date.day}"
+        self.day_text.reference_date = self.reference_date
+        self.events_container.query("Label").remove()
+        self.events_container.mount_all(self._get_event_labels())
+
+    def _get_event_labels(self):
+        return (Label(ev.short_description, classes="event") for ev in self.events)
 
     def is_current_month(self):
         if self.reference_date is None:

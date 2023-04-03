@@ -1,12 +1,11 @@
+import os
 from typing import ClassVar
 
-from dotenv import load_dotenv
-from textual.app import App, ComposeResult, log
+from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.widgets import Footer, Header
 
-from colors import kanagawa
-from utils import generate_css_vars_from_colorscheme
+from ical import ICal, ICalClient
 from widgets import MainPane
 
 
@@ -15,19 +14,20 @@ class CalendarApp(App):
         Binding("q", "quit", "Quit app", show=True),
         Binding("d", "toggle_dark", "Toggle dark mode", show=True),
     ]
-    DEFAULT_CSS = generate_css_vars_from_colorscheme(kanagawa)
     CSS_PATH: ClassVar[str] = "main.css"
 
+    ical_client: ICalClient
+
     def compose(self) -> ComposeResult:
+        self._setup()
+
         yield Header(show_clock=True)
-        yield MainPane()
+        yield MainPane(self.ical_client)
         yield Footer()
 
     def action_toggledark(self) -> None:
         self.dark = not self.dark
 
-
-if __name__ == "__main__":
-    load_dotenv()
-    app = CalendarApp()
-    app.run()
+    def _setup(self):
+        url = os.getenv("ICAL_URL", "")
+        self.ical_client = ICal(url)
