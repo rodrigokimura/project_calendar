@@ -639,11 +639,11 @@
                 "dev"
             ],
             "hashes": [
-                "sha256:b9808fb3427d786a26db8723fdfd78c9a34f9a528f412920daafe8af9fc6a5a9",
-                "sha256:e9f5f7d740ce592974580679e46230e85b56a568203a80dcfbbc1a4159c1f2a6"
+                "sha256:5cf2ccbb898fbaca0589c0fa99dccaee413145219398841958425e84fe9c04a7",
+                "sha256:5e8d1d2406543f30f9ca35ba16ae0aa7b6e01a7d94ec3592c4733e8552a727bc"
             ],
             "index": "pypi",
-            "version": "==0.17.3"
+            "version": "==0.18.0"
         },
         "typing-extensions": {
             "hashes": [

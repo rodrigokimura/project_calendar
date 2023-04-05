@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import ClassVar
+from functools import wraps
+from typing import Callable, ClassVar
 
 from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Container, Vertical, VerticalScroll
+from textual.message import Message
 from textual.reactive import reactive, var
 from textual.widget import Widget
 from textual.widgets import Label, Static
@@ -19,6 +21,34 @@ from utils import (
     get_today,
     get_weekday_names,
 )
+
+
+class LoadableWidget(Widget):
+    class Loading(Message):
+        ...
+
+    class Loaded(Message):
+        ...
+
+    @classmethod
+    def show_loading_animation(cls, method: Callable):
+        error = ValueError(f"{method.__name__} should be an instance method of a {cls.__name__} subclass.")
+
+        @wraps(method)
+        def wrapper_func(*args, **kwargs):
+            if len(args) == 0:
+                raise error
+            loadable_widget = args[0]
+            if not isinstance(loadable_widget, LoadableWidget):
+                raise error
+
+            loadable_widget.post_message(loadable_widget.Loading())
+
+            method(*args, **kwargs)
+
+            loadable_widget.post_message(loadable_widget.Loaded())
+
+        return wrapper_func
 
 
 class MonthlyCalendarHeader(Widget):
@@ -61,7 +91,7 @@ class MainPane(Container):
         self.app.exit()
 
 
-class Month(Container):
+class Month(Container, LoadableWidget):
     DEFAULT_CSS = """
     Month {
         layout: vertical;
@@ -97,8 +127,8 @@ class Month(Container):
                 yield Static(wd, classes="weekday-name-header")
         self._load_data()
 
+    @LoadableWidget.show_loading_animation
     def _load_data(self):
-        # TODO: add loading animation
         first_day_of_month = date(self.year, self.month, 1)
         initial_date = get_initial_date_of_monthly_calendar(self.year, self.month)
         final_date = get_final_date_of_monthly_calendar(self.year, self.month)
@@ -110,10 +140,15 @@ class Month(Container):
         for i in range((final_date - initial_date).days + 1):
             d = Day()
             reference_date = initial_date + timedelta(days=i)
-            d.events = self.ical_client.get_events_by_day(reference_date)
             d.reference_month = self.month
             d.reference_date = reference_date
             self.container.mount(d)
+        self._load_events()
+
+    def _load_events(self):
+        days = self.container.query(Day)
+        for d in days:
+            d.events = self.ical_client.get_events_by_day(d.reference_date)
 
     def action_prev(self):
         if self.month > 1:
@@ -121,7 +156,6 @@ class Month(Container):
         else:
             self.year -= 1
             self.month = 12
-        self.refresh()
 
     def action_next(self):
         if self.month < 12:
@@ -129,7 +163,6 @@ class Month(Container):
         else:
             self.year += 1
             self.month = 1
-        self.refresh()
 
     def watch_month(self, old_month: int, new_month: int):
         self._load_data()
