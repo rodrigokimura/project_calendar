@@ -5,9 +5,9 @@ name = "pypi"
 
 [packages]
 python-dotenv = "*"
-textual = {extras = ["dev"], version = "*"}
 pydantic = "*"
 icalevents = "*"
+textual = "*"
 
 [dev-packages]
 black = "*"

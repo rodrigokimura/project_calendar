@@ -47,3 +47,8 @@ class CalendarApp(App):
     def _setup(self):
         url = os.getenv("ICAL_URL", "")
         self.ical_client = ICal(url)
+
+
+if __name__ == "__main__":
+    app = CalendarApp()
+    app.run()
