@@ -25,12 +25,14 @@ MonthlyCalendarHeader {
 Day {
   border: round $base03;
 }
+Day.highlighted {
+  border: thick $base0B !important;
+}
 Day.current-month {
   border: round $base0C;
 }
 Day.today {
   border: round $base0D;
-  background: $base07;
 }
 Day.today > DayText {
   color: $base0D;

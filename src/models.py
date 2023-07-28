@@ -10,15 +10,11 @@ class BaseModel(_BaseModel):
 
 
 class Event(BaseModel):
-    summary: Optional[str]
+    summary: str | None
     description: Optional[str]
     start: Optional[datetime]
     end: Optional[datetime]
     # self.uid = -1
-    # self.summary = None
-    # self.description = None
-    # self.start = None
-    # self.end = None
     # self.all_day = True
     # self.transparent = False
     # self.recurring = False
@@ -32,8 +28,8 @@ class Event(BaseModel):
     # self.organizer = None
     # self.categories = None
     # self.floating = None
-    # self.status = None
-    # self.url = None
+    status: str | None = None
+    url: str | None = None
 
     class Config:
         orm_mode = True
@@ -54,3 +50,6 @@ class Event(BaseModel):
         if self.summary is None:
             return "No summary"
         return self.summary
+
+    # def __str__(self) -> str:
+    #     return f"{self.summary} - {self.start}"

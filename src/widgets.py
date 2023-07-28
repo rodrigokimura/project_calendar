@@ -8,11 +8,13 @@ from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Container, Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive, var
 from textual.widget import Widget
 from textual.widgets import Label, Static
 
+from constants import Direction
 from ical import ICalClient
 from models import Event
 from utils import (
@@ -32,7 +34,9 @@ class LoadableWidget(Widget):
 
     @classmethod
     def show_loading_animation(cls, method: Callable):
-        error = ValueError(f"{method.__name__} should be an instance method of a {cls.__name__} subclass.")
+        error = ValueError(
+            f"{method.__name__} should be an instance method of a {cls.__name__} subclass."
+        )
 
         @wraps(method)
         def wrapper_func(*args, **kwargs):
@@ -108,15 +112,20 @@ class Month(Container, LoadableWidget):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("n", "next", "Next month", show=True),
         Binding("p", "prev", "Previous month", show=True),
+        Binding("l", "move_right", "Right", show=True),
+        Binding("h", "move_left", "Left", show=True),
+        Binding("j", "move_down", "Down", show=True),
+        Binding("k", "move_up", "Up", show=True),
+        Binding("space", "select", "Select", show=True),
     ]
     can_focus = True
     month = var(lambda: get_today().month)
     year = var(lambda: get_today().year)
     header = var(MonthlyCalendarHeader)
+    highlighted_date = var(lambda: get_today())
 
     def __init__(self, ical_client: ICalClient, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.days = [Day() for _ in range(7 * 4)]
         self.ical_client = ical_client
 
     def compose(self) -> ComposeResult:
@@ -135,20 +144,19 @@ class Month(Container, LoadableWidget):
 
         self.header.reference_date = first_day_of_month
 
-        self.container.query("Day").remove()
+        self.container.query(Day).remove()
 
         for i in range((final_date - initial_date).days + 1):
-            d = Day()
+            day = Day()
             reference_date = initial_date + timedelta(days=i)
-            d.reference_month = self.month
-            d.reference_date = reference_date
-            self.container.mount(d)
+            day.reference_month = self.month
+            day.reference_date = reference_date
+            self.container.mount(day)
         self._load_events()
 
     def _load_events(self):
-        days = self.container.query(Day)
-        for d in days:
-            d.events = self.ical_client.get_events_by_day(d.reference_date)
+        for day in self.container.query(Day):
+            day.events = self.ical_client.get_events_by_day(day.reference_date)
 
     def action_prev(self):
         if self.month > 1:
@@ -164,8 +172,60 @@ class Month(Container, LoadableWidget):
             self.year += 1
             self.month = 1
 
-    def watch_month(self, old_month: int, new_month: int):
+    def action_move_right(self):
+        self._move(Direction.RIGHT)
+
+    def action_move_left(self):
+        self._move(Direction.LEFT)
+
+    def action_move_up(self):
+        self._move(Direction.UP)
+
+    def action_move_down(self):
+        self._move(Direction.DOWN)
+
+    def action_select(self):
+        for day in self.container.query(Day):
+            if day.reference_date == self.highlighted_date:
+                for event in day.events:
+                    # TODO: replace with modal
+                    print(event)
+
+    def watch_month(self, /):
         self._load_data()
+
+    def watch_highlighted_date(self, _, new: date):
+        for day in self.container.query(Day):
+            if new == day.reference_date:
+                self._highlight(new)
+                break
+        else:
+            self.month = new.month
+            self.year = new.year
+            self._highlight(new)
+
+    def _move(self, direction: Direction):
+        offsets = {
+            Direction.RIGHT: 1,
+            Direction.LEFT: -1,
+            Direction.DOWN: 7,
+            Direction.UP: -7,
+        }
+        _date = self.highlighted_date + timedelta(days=offsets[direction])
+        self.highlighted_date = _date
+
+    def _highlight(self, which: date):
+        class_name = "highlighted"
+
+        try:
+            day = self.container.query_one(f".{class_name}", Day)
+            day.remove_class(class_name)
+        except NoMatches:
+            pass
+
+        for day in self.container.query(Day):
+            if day.reference_date == which:
+                day.add_class(class_name)
 
 
 class DayText(Widget):
@@ -201,7 +261,7 @@ class Day(Vertical):
         self.events_container = VerticalScroll(*self._get_event_labels())
         yield self.events_container
 
-    def watch_reference_date(self, old: date, new: date):
+    def watch_reference_date(self, /):
         css_class_to_attr_map = {
             "today": self.is_today(),
             "saturday": self.is_saturday(),
