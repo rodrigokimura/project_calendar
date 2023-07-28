@@ -67,3 +67,9 @@ def get_final_date_of_monthly_calendar(year: int, month: int):
 def get_ttl_hash(seconds=60):
     """Return the same value withing `seconds` time period"""
     return round(time.time() / seconds)
+
+
+def format_date(date_: date | None = None):
+    if date_ is None:
+        return ""
+    return date_.strftime("%H:%M:%S")

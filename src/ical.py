@@ -50,4 +50,6 @@ class ICal(ICalClient):
             reference_date.year,
             reference_date.month,
         )
-        return [e for e in events if e.covers_date(reference_date)]
+        events = [e for e in events if e.covers_date(reference_date)]
+        events.sort(key=lambda e: e.start or 0)
+        return events

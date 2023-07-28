@@ -10,10 +10,10 @@ class BaseModel(_BaseModel):
 
 
 class Event(BaseModel):
-    summary: str | None
-    description: Optional[str]
-    start: Optional[datetime]
-    end: Optional[datetime]
+    summary: str | None = None
+    description: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
     # self.uid = -1
     # self.all_day = True
     # self.transparent = False
@@ -50,6 +50,3 @@ class Event(BaseModel):
         if self.summary is None:
             return "No summary"
         return self.summary
-
-    # def __str__(self) -> str:
-    #     return f"{self.summary} - {self.start}"

@@ -46,10 +46,34 @@ Day.sunday > DayText {
 Day > VerticalScroll {
   height: 100%;
 }
-Label.event {
+Day Label.event {
   background: $base0C;
   color: $base00;
 }
 Static.weekday-name-header {
   color: $base04;
+}
+
+EventsModal {
+  align: center middle;
+}
+
+EventsModal > Horizontal {
+  width: 70%;
+  height: 80%;
+  padding-left: 1;
+  padding-right: 1;
+  border: round $base0C;
+}
+
+EventsModal EventList {
+  width: 50%;
+}
+
+EventsModal EventList Label.event {
+  padding: 1;
+}
+
+EventsModal Widget.panel {
+  padding: 1;
 }

@@ -15,7 +15,7 @@ class LoadingScreen(Screen):
         yield LoadingIndicator()
 
 
-class CalendarApp(App):
+class CalendarApp(App[None]):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("q", "quit", "Quit app", show=True),
         Binding("d", "toggle_dark", "Toggle dark mode", show=True),

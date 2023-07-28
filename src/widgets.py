@@ -7,17 +7,19 @@ from typing import Callable, ClassVar
 from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container, Vertical, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive, var
+from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Label, Static
+from textual.widgets import Label, ListItem, ListView, Static
 
 from constants import Direction
 from ical import ICalClient
 from models import Event
 from utils import (
+    format_date,
     get_final_date_of_monthly_calendar,
     get_initial_date_of_monthly_calendar,
     get_today,
@@ -187,9 +189,7 @@ class Month(Container, LoadableWidget):
     def action_select(self):
         for day in self.container.query(Day):
             if day.reference_date == self.highlighted_date:
-                for event in day.events:
-                    # TODO: replace with modal
-                    print(event)
+                self.app.push_screen(EventsModal(day.events))
 
     def watch_month(self, /):
         self._load_data()
@@ -291,3 +291,95 @@ class Day(Vertical):
 
     def is_today(self):
         return self.reference_date == get_today()
+
+
+class EventList(ListView):
+    BINDINGS: list[BindingType] = [
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
+        Binding("end", "last", "Last", show=False),
+        Binding("enter", "select", "Select", show=False),
+        Binding("home", "first", "First", show=False),
+        Binding("page_down", "page_down", "Page Down", show=False),
+        Binding("page_up", "page_up", "Page Up", show=False),
+    ]
+
+
+class EventsModal(ModalScreen[str]):
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("escape", "quit", "Quit", show=True),
+    ]
+
+    def __init__(
+        self,
+        events: list[Event],
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+    ) -> None:
+        super().__init__(name, id, classes)
+        self.events = events
+        self.panel = EventPanel(events[0], classes="panel")
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            event_list = EventList(
+                *(
+                    ListItem(Label(e.short_description, classes="event"))
+                    for e in self.events
+                )
+            )
+            event_list.focus()
+            yield event_list
+            yield self.panel
+
+    def action_quit(self):
+        self.app.pop_screen()
+
+    def on_list_view_highlighted(self, event: EventList.Highlighted):
+        idx = event.list_view.index
+        if idx is not None:
+            event_ = self.events[idx]
+            self.panel.event = event_
+
+
+class EventPanel(VerticalScroll):
+    event = var(lambda: Event())
+    title: Label = Label()
+    description: Label = Label()
+    start: Label = Label()
+    end: Label = Label()
+
+    def __init__(
+        self,
+        event: Event,
+        *children: Widget,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            *children, name=name, id=id, classes=classes, disabled=disabled
+        )
+        self.event = event
+        self.title = Label(self.event.summary or "")
+        self.description = Label(self.event.description or "")
+        self.start = Label(format_date(self.event.start) or "")
+        self.end = Label(format_date(self.event.end) or "")
+
+    def compose(self) -> ComposeResult:
+        self.update()
+        yield self.title
+        yield self.start
+        yield self.end
+        yield self.description
+
+    def update(self):
+        self.title.update(self.event.summary or "")
+        self.description.update(self.event.description or "")
+        self.start.update(format_date(self.event.start) or "")
+        self.end.update(format_date(self.event.end) or "")
+
+    def watch_event(self, /):
+        self.update()
